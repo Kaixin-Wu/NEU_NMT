@@ -12,13 +12,13 @@ from utils import load_dataset
 
 def parse_arguments():
     p = argparse.ArgumentParser(description='Hyperparams')
-    p.add_argument('-epochs', type=int, default=50,
+    p.add_argument('-epochs', type=int, default=100,
                    help='number of epochs for train')
-    p.add_argument('-batch_size', type=int, default=80,
+    p.add_argument('-batch_size', type=int, default=32,
                    help='number of epochs for train')
     p.add_argument('-lr', type=float, default=0.0001,
                    help='initial learning rate')
-    p.add_argument('-grad_clip', type=float, default=1.0,
+    p.add_argument('-grad_clip', type=float, default=10.0,
                    help='initial learning rate')
     return p.parse_args()
 
@@ -68,7 +68,7 @@ def train(e, model, optimizer, train_iter, vocab_size, grad_clip, Lang1, Lang2):
 def main():
     args = parse_arguments()
     hidden_size = 512
-    embed_size = 512
+    embed_size = 256
     assert torch.cuda.is_available()
 
     print("[!] preparing dataset...")
@@ -77,13 +77,13 @@ def main():
     print("[TRAIN]:%d (dataset:%d)\t[TEST]:%d (dataset:%d)"
           % (len(train_iter), len(train_iter.dataset),
              len(test_iter), len(test_iter.dataset)))
-    print("[Lang1_vocab]:%d [en_vocab]:%d" % (de_size, en_size))
+    print("[Lang1_vocab]:%d [Lang2_vocab]:%d" % (de_size, en_size))
 
     print("[!] Instantiating models...")
     encoder = Encoder(de_size, embed_size, hidden_size,
-                      n_layers=1, dropout=0.2)
+                      n_layers=2, dropout=0.5)
     decoder = Decoder(embed_size, hidden_size, en_size,
-                      n_layers=1, dropout=0.2)
+                      n_layers=1, dropout=0.5)
     seq2seq = Seq2Seq(encoder, decoder).cuda()
     optimizer = optim.Adam(seq2seq.parameters(), lr=args.lr)
     print(seq2seq)

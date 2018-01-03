@@ -8,7 +8,7 @@ import torch.nn.functional as F
 
 class Encoder(nn.Module):
     def __init__(self, input_size, embed_size, hidden_size,
-                 n_layers=1, dropout=0.2):
+                 n_layers=1, dropout=0.5):
         super(Encoder, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
@@ -70,7 +70,7 @@ class Decoder(nn.Module):
     def forward(self, input, last_hidden, encoder_outputs):
         # Get the embedding of the current input word (last output word)
         embedded = self.embed(input).unsqueeze(0)  # (1,B,N)
-        ## embedded = self.dropout(embedded)
+        embedded = self.dropout(embedded)
         # Calculate attention weights and apply to encoder outputs
         attn_weights = self.attention(last_hidden[-1], encoder_outputs)
         context = attn_weights.bmm(encoder_outputs.transpose(0, 1))  # (B,1,N)
