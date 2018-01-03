@@ -40,4 +40,8 @@ def model_translate(model,
 
         xx, yy, zz = model.translate(src, trg, beam_size, Lang2)
         out = [Lang2.vocab.itos[int(index)] for index in zz]
-        print >> outfile, out
+
+        outfile.write(' '.join(reversed(out))+'\n')
+    
+    infile.close()
+    outfile.close()

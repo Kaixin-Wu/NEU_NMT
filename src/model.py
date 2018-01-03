@@ -5,6 +5,7 @@ from torch import nn
 from torch.autograd import Variable
 import torch.nn.functional as F
 
+from beam_search import Beam
 
 class Encoder(nn.Module):
     def __init__(self, input_size, embed_size, hidden_size,
