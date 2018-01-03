@@ -21,9 +21,12 @@ class Encoder(nn.Module):
     def forward(self, src, hidden=None):
         embedded = self.embed(src)
         outputs, hidden = self.gru(embedded, hidden)
+
+        '''
         # sum bidirectional outputs
         outputs = (outputs[:, :, :self.hidden_size] +
                    outputs[:, :, self.hidden_size:])
+        '''
         return outputs, hidden
 
 
@@ -31,7 +34,7 @@ class Attention(nn.Module):
     def __init__(self, hidden_size):
         super(Attention, self).__init__()
         self.hidden_size = hidden_size
-        self.attn = nn.Linear(self.hidden_size * 2, hidden_size)
+        self.attn = nn.Linear(self.hidden_size * 3, hidden_size)
         self.v = nn.Parameter(torch.rand(hidden_size))
         stdv = 1. / math.sqrt(self.v.size(0))
         self.v.data.uniform_(-stdv, stdv)
@@ -39,7 +42,7 @@ class Attention(nn.Module):
     def forward(self, hidden, encoder_outputs):
         timestep = encoder_outputs.size(0)
         h = hidden.repeat(timestep, 1, 1).transpose(0, 1)
-        encoder_outputs = encoder_outputs.transpose(0, 1)  # [B*T*H]
+        encoder_outputs = encoder_outputs.transpose(0, 1)  # [B*T*2H]
         attn_energies = self.score(h, encoder_outputs)
         return F.softmax(attn_energies, dim=1).unsqueeze(1)
 
@@ -64,9 +67,9 @@ class Decoder(nn.Module):
         self.embed = nn.Embedding(output_size, embed_size)
         self.dropout = nn.Dropout(dropout, inplace=True)
         self.attention = Attention(hidden_size)
-        self.gru = nn.GRU(hidden_size + embed_size, hidden_size,
+        self.gru = nn.GRU(2 * hidden_size + embed_size, hidden_size,
                           n_layers, dropout=dropout)
-        self.out = nn.Linear(hidden_size * 2, output_size)
+        self.out = nn.Linear(hidden_size * 3, output_size)
 
     def forward(self, input, last_hidden, encoder_outputs):
         # Get the embedding of the current input word (last output word)

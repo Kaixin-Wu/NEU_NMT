@@ -89,8 +89,8 @@ def main():
     optimizer = optim.Adam(seq2seq.parameters(), lr=args.lr)
     print(seq2seq)
 
-    model_translate(seq2seq, "save/seq2seq_13.pt", "eval/input.txt", "eval/output.txt", Lang1, Lang2, beam_size=4, max_len=50)
-    exit(-1)    
+    ## model_translate(seq2seq, "save/seq2seq_13.pt", "eval/input.txt", "eval/output.txt", Lang1, Lang2, beam_size=4, max_len=50)
+    ## exit(-1)    
 
     best_val_loss = None
     for e in range(1, args.epochs+1):
