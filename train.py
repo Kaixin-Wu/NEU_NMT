@@ -23,9 +23,9 @@ def parse_arguments():
     return p.parse_args()
 
 
-def evaluate(model, val_iter, vocab_size, DE, EN):
+def evaluate(model, val_iter, vocab_size, Lang1, Lang2):
     model.eval()
-    pad = EN.vocab.stoi['<pad>']
+    pad = Lang2.vocab.stoi['<pad>']
     total_loss = 0
     for b, batch in enumerate(val_iter):
         src, len_src = batch.src
@@ -40,10 +40,10 @@ def evaluate(model, val_iter, vocab_size, DE, EN):
     return total_loss / len(val_iter)
 
 
-def train(e, model, optimizer, train_iter, vocab_size, grad_clip, DE, EN):
+def train(e, model, optimizer, train_iter, vocab_size, grad_clip, Lang1, Lang2):
     model.train()
     total_loss = 0
-    pad = EN.vocab.stoi['<pad>']
+    pad = Lang2.vocab.stoi['<pad>']
     for b, batch in enumerate(train_iter):
         src, len_src = batch.src
         trg, len_trg = batch.trg
@@ -72,12 +72,12 @@ def main():
     assert torch.cuda.is_available()
 
     print("[!] preparing dataset...")
-    train_iter, val_iter, test_iter, DE, EN = load_dataset(args.batch_size)
-    de_size, en_size = len(DE.vocab), len(EN.vocab)
+    train_iter, val_iter, test_iter, Lang1, Lang2 = load_dataset(args.batch_size)
+    de_size, en_size = len(Lang1.vocab), len(Lang2.vocab)
     print("[TRAIN]:%d (dataset:%d)\t[TEST]:%d (dataset:%d)"
           % (len(train_iter), len(train_iter.dataset),
              len(test_iter), len(test_iter.dataset)))
-    print("[DE_vocab]:%d [en_vocab]:%d" % (de_size, en_size))
+    print("[Lang1_vocab]:%d [en_vocab]:%d" % (de_size, en_size))
 
     print("[!] Instantiating models...")
     encoder = Encoder(de_size, embed_size, hidden_size,
@@ -91,8 +91,8 @@ def main():
     best_val_loss = None
     for e in range(1, args.epochs+1):
         train(e, seq2seq, optimizer, train_iter,
-              en_size, args.grad_clip, DE, EN)
-        val_loss = evaluate(seq2seq, val_iter, en_size, DE, EN)
+              en_size, args.grad_clip, Lang1, Lang2)
+        val_loss = evaluate(seq2seq, val_iter, en_size, Lang1, Lang2)
         print("[Epoch:%d] val_loss:%5.3f | val_pp:%5.2fS"
               % (e, val_loss, math.exp(val_loss)))
 
@@ -103,7 +103,7 @@ def main():
                 os.makedirs("save")
             torch.save(seq2seq.state_dict(), './save/seq2seq_%d.pt' % (e))
             best_val_loss = val_loss
-    test_loss = evaluate(seq2seq, test_iter, en_size, DE, EN)
+    test_loss = evaluate(seq2seq, test_iter, en_size, Lang1, Lang2)
     print("[TEST] loss:%5.2f" % test_loss)
 
 

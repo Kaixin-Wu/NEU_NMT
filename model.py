@@ -108,3 +108,61 @@ class Seq2Seq(nn.Module):
             top1 = output.data.max(1)[1]
             output = Variable(trg.data[t] if is_teacher else top1).cuda()
         return outputs
+
+    def translate(self, src, trg, beam_size, Lang2):
+        ''' beam search decoding. '''
+        '''
+        :param src:   [src_max_len, batch]    ## batch = 1
+        :param trg:   [trg_max_len, batch]    ## batch = 1
+        :param sentence:  [sentence_len]
+        :return: best translate candidate
+        '''
+        max_len = trg.size(0)
+        encoder_output, hidden = self.encoder(src)
+        '''
+            ## src: [src_max_len, batch]
+            ## encoder_output: [src_max_len, batch, hidden_size]
+            ## hidden: (num_layers * num_directions, batch, hidden_size) -> [2, batch, hidden_size]
+        '''
+        hidden = hidden[:self.decoder.n_layers]  # [n_layers, batch, hidden_size]
+        # trg: [trg_max_len, batch]
+        output = Variable(trg.data[0, :])  # sos  [batch]
+
+        beam = Beam(beam_size, Lang2.vocab.stoi, True)
+        for t in range(1, max_len):
+            # output:  [batch] -> [batch, output_size]
+            output, hidden, attn_weights = self.decoder(
+                    output, hidden, encoder_output)
+
+            workd_lk = output
+            if output.size(0) == 1:
+
+                output_prob = output.squeeze(0) ## [output_size]
+                workd_lk = output_prob.expand(beam_size, output_prob.size(0))  ## [beam_size, output_size]
+
+                # [n_layers, batch, hidden_size]
+                hidden = hidden.squeeze(1)  # [n_layers, hidden_size]
+                hidden = hidden.expand(beam_size, hidden.size(0), hidden.size(1)) # [beam_size, n_layers, hidden_size]
+                hidden = hidden.transpose(0, 1) # [n_layers, beam_size, hidden_size]
+                
+                # [src_max_len, batch, hidden_size]
+                encoder_output = encoder_output.squeeze(1) ## [src_max_len, hidden_size]
+                encoder_output = encoder_output.expand(beam_size, encoder_output.size(0), encoder_output.size(1)) ## [beam_size, src_max_len, hidden_size]
+                encoder_output = encoder_output.transpose(0, 1)  ## [src_max_len, beam_size, hidden_size] 
+
+            flag = beam.advance(workd_lk)
+            if flag:
+                break
+
+            nextInputs = beam.get_current_state()
+            # print("[nextInputs]:", nextInputs)
+            output = nextInputs
+            # output = Variable(nextInputs).cuda()
+
+            originState = beam.get_current_origin()
+            print("[origin_state]:", originState)
+            hidden = hidden[:, originState]
+
+        xx, yy = beam.get_best()
+        zz = beam.get_final()
+        return xx, yy, zz
