@@ -9,12 +9,12 @@ def load_dataset(batch_size):
     Lang1 = Field(include_lengths=True, init_token='<sos>', eos_token='<eos>')
     Lang2 = Field(include_lengths=True, init_token='<sos>', eos_token='<eos>')
 
-    train = TranslationDataset(path='data-3w/train', exts=('.de', '.en'), fields=(Lang1, Lang2))
-    val = TranslationDataset(path='data-3w/valid', exts=('.de', '.en'), fields=(Lang1, Lang2))
-    test = TranslationDataset(path='data-3w/test', exts=('.de', '.en'), fields=(Lang1, Lang2))
+    train = TranslationDataset(path='data/180w/train', exts=('.ch', '.en'), fields=(Lang1, Lang2))
+    val = TranslationDataset(path='data/180w/valid', exts=('.ch', '.en'), fields=(Lang1, Lang2))
+    test = TranslationDataset(path='data/180w/test', exts=('.ch', '.en'), fields=(Lang1, Lang2))
 
-    Lang1.build_vocab(train.src, min_freq=2)
-    Lang2.build_vocab(train.trg, max_size=10000)
+    Lang1.build_vocab(train.src, max_size=30000)
+    Lang2.build_vocab(train.trg, max_size=30000)
 
     train_iter, val_iter, test_iter = BucketIterator.splits((train, val, test),
                                                             batch_size=batch_size, repeat=False)
