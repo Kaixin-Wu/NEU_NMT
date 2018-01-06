@@ -24,6 +24,7 @@ def model_translate(model,
     src_SOS_id = Lang1.vocab.stoi['<sos>']
     src_EOS_id = Lang1.vocab.stoi['<eos>']
     trg_SOS_id = Lang2.vocab.stoi['<sos>']
+    trg_EOS_id = Lang2.vocab.stoi['<eos>']
 
     for line in infile:
         wordList = line.strip().split()
@@ -39,9 +40,18 @@ def model_translate(model,
         trg = Variable(trg.cuda(), volatile=True)
 
         xx, yy, zz = model.translate(src, trg, beam_size, Lang2)
-        out = [Lang2.vocab.itos[int(index)] for index in zz]
+       
+        out = []
+        for index in reversed(zz):
+            if index == int(trg_EOS_id):
+                break
 
-        outfile.write(' '.join(reversed(out))+'\n')
+            out.append(Lang2.vocab.itos[index])
+
+        outfile.write(' '.join(out)+'\n')
+
+        ## out = [Lang2.vocab.itos[int(index)] for index in zz]
+        ## outfile.write(' '.join(reversed(out))+'\n')
     
     infile.close()
     outfile.close()
