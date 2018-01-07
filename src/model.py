@@ -15,6 +15,9 @@ class Encoder(nn.Module):
         self.hidden_size = hidden_size
         self.embed_size = embed_size
         self.embed = nn.Embedding(input_size, embed_size)
+        stdv = 1. / math.sqrt(embed_size)
+        self.embed.weight.data.uniform_(-stdv, stdv)
+
         self.gru = nn.GRU(embed_size, hidden_size, n_layers,
                           dropout=dropout, bidirectional=True)
 
@@ -65,6 +68,9 @@ class Decoder(nn.Module):
         self.n_layers = n_layers
 
         self.embed = nn.Embedding(output_size, embed_size)
+        stdv = 1. / math.sqrt(embed_size)
+        self.embed.weight.data.uniform_(-stdv, stdv)
+
         ### self.dropout = nn.Dropout(dropout, inplace=True)
         self.attention = Attention(hidden_size)
         self.gru = nn.GRU(2 * hidden_size + embed_size, hidden_size,

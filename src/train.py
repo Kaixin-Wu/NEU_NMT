@@ -15,11 +15,11 @@ def parse_arguments():
     p = argparse.ArgumentParser(description='Hyperparams')
     p.add_argument('-epochs', type=int, default=100,
                    help='number of epochs for train')
-    p.add_argument('-batch_size', type=int, default=64,
+    p.add_argument('-batch_size', type=int, default=80,
                    help='number of epochs for train')
     p.add_argument('-lr', type=float, default=0.0001,
                    help='initial learning rate')
-    p.add_argument('-grad_clip', type=float, default=5.0,
+    p.add_argument('-grad_clip', type=float, default=1.0,
                    help='initial learning rate')
     return p.parse_args()
 
@@ -68,8 +68,8 @@ def train(e, model, optimizer, train_iter, vocab_size, grad_clip, Lang1, Lang2):
 
 def main():
     args = parse_arguments()
-    hidden_size = 1024
-    embed_size = 512
+    hidden_size = 256
+    embed_size = 256
     assert torch.cuda.is_available()
 
     print("[!] preparing dataset...")
@@ -89,8 +89,8 @@ def main():
     optimizer = optim.Adam(seq2seq.parameters(), lr=args.lr)
     print(seq2seq)
 
-    model_translate(seq2seq, "save-1024/seq2seq_3.pt", "data/valid.ch.1664", "eval/mt06.out", Lang1, Lang2, beam_size=12, max_len=120)
-    exit(-1)    
+    ## model_translate(seq2seq, "save-1024/seq2seq_3.pt", "data/valid.ch.1664", "eval/mt06.out", Lang1, Lang2, beam_size=12, max_len=120)
+    ## exit(-1)    
 
     best_val_loss = None
     for e in range(1, args.epochs+1):
@@ -103,9 +103,9 @@ def main():
         # Save the model if the validation loss is the best we've seen so far.
         if not best_val_loss or val_loss < best_val_loss:
             print("[!] saving model...")
-            if not os.path.isdir("save-1024"):
-                os.makedirs("save-1024")
-            torch.save(seq2seq.state_dict(), './save-1024/seq2seq_%d.pt' % (e))
+            if not os.path.isdir("save-256"):
+                os.makedirs("save-256")
+            torch.save(seq2seq.state_dict(), './save-256/seq2seq_%d.pt' % (e))
             best_val_loss = val_loss
     test_loss = evaluate(seq2seq, test_iter, en_size, Lang1, Lang2)
     print("[TEST] loss:%5.2f" % test_loss)
