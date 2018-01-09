@@ -3,6 +3,7 @@ import math
 import argparse
 import torch
 from torch import optim
+from torch import nn
 from torch.autograd import Variable
 from torch.nn.utils import clip_grad_norm
 from torch.nn import functional as F
@@ -12,6 +13,7 @@ from utils import load_dataset
 from translate import model_translate
 
 def parse_arguments():
+    
     p = argparse.ArgumentParser(description='Hyperparams')
     p.add_argument('-epochs', type=int, default=100,
                    help='number of epochs for train')
@@ -21,6 +23,9 @@ def parse_arguments():
                    help='initial learning rate')
     p.add_argument('-grad_clip', type=float, default=1.0,
                    help='initial learning rate')
+    p.add_argument('-teacher_forcing_ratio', type=float, default=1.0,
+                   help='teacher forcing ratio')   
+
     return p.parse_args()
 
 
@@ -85,7 +90,16 @@ def main():
                       n_layers=1, dropout=0.2)
     decoder = Decoder(embed_size, hidden_size, en_size,
                       n_layers=1, dropout=0.2)
-    seq2seq = Seq2Seq(encoder, decoder).cuda()
+    
+    ## seq2seq = Seq2Seq(encoder, decoder).cuda()
+     
+    seq2seq = Seq2Seq(encoder, decoder)
+    if torch.cuda.device_count() > 1:
+        print("Total", torch.cuda.device_count(), "GPUs!")
+        seq2seq = nn.DataParallel(seq2seq)
+    seq2seq.cuda()
+    
+
     optimizer = optim.Adam(seq2seq.parameters(), lr=args.lr)
     print(seq2seq)
 
@@ -103,9 +117,9 @@ def main():
         # Save the model if the validation loss is the best we've seen so far.
         if not best_val_loss or val_loss < best_val_loss:
             print("[!] saving model...")
-            if not os.path.isdir("save-256"):
-                os.makedirs("save-256")
-            torch.save(seq2seq.state_dict(), './save-256/seq2seq_%d.pt' % (e))
+            if not os.path.isdir("save"):
+                os.makedirs("save")
+            torch.save(seq2seq.state_dict(), './save/seq2seq_%d.pt' % (e))
             best_val_loss = val_loss
     test_loss = evaluate(seq2seq, test_iter, en_size, Lang1, Lang2)
     print("[TEST] loss:%5.2f" % test_loss)

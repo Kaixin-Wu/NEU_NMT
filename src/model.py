@@ -15,14 +15,15 @@ class Encoder(nn.Module):
         self.hidden_size = hidden_size
         self.embed_size = embed_size
         self.embed = nn.Embedding(input_size, embed_size)
-        stdv = 1. / math.sqrt(embed_size)
-        self.embed.weight.data.uniform_(-stdv, stdv)
+        ## stdv = 1. / math.sqrt(embed_size)
+        ## self.embed.weight.data.normal_(0, stdv)
 
         self.gru = nn.GRU(embed_size, hidden_size, n_layers,
                           dropout=dropout, bidirectional=True)
 
     def forward(self, src, hidden=None):
         embedded = self.embed(src)
+        self.gru.flatten_parameters()   ## Edit by Wu Kaixin 2018/1/9
         outputs, hidden = self.gru(embedded, hidden)
 
         '''
@@ -68,8 +69,8 @@ class Decoder(nn.Module):
         self.n_layers = n_layers
 
         self.embed = nn.Embedding(output_size, embed_size)
-        stdv = 1. / math.sqrt(embed_size)
-        self.embed.weight.data.uniform_(-stdv, stdv)
+        ## stdv = 1. / math.sqrt(embed_size)
+        ## self.embed.weight.data.normal_(0, stdv)
 
         ### self.dropout = nn.Dropout(dropout, inplace=True)
         self.attention = Attention(hidden_size)
@@ -87,6 +88,8 @@ class Decoder(nn.Module):
         context = context.transpose(0, 1)  # (1,B,N)
         # Combine embedded input word and attended context, run through RNN
         rnn_input = torch.cat([embedded, context], 2)
+        
+        self.gru.flatten_parameters()  ## Edit by Wu Kaixin 2018/1/9
         output, hidden = self.gru(rnn_input, last_hidden)
         output = output.squeeze(0)  # (1,B,N) -> (B,N)
         context = context.squeeze(0)
@@ -101,7 +104,7 @@ class Seq2Seq(nn.Module):
         self.encoder = encoder
         self.decoder = decoder
 
-    def forward(self, src, trg, teacher_forcing_ratio=0.5):
+    def forward(self, src, trg, teacher_forcing_ratio=1.0):
         batch_size = src.size(1)
         max_len = trg.size(0)
         vocab_size = self.decoder.output_size
