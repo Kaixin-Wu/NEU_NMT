@@ -22,8 +22,14 @@ def parse_arguments():
                    help='number of epochs for train')
     p.add_argument('-lr', type=float, default=0.0001,
                    help='initial learning rate')
-    p.add_argument('-grad_clip', type=float, default=1.0,
+    p.add_argument('-grad_clip', type=float, default=5.0,
                    help='initial learning rate')
+    p.add_argument('-optimizer', type=str, default='Adadelta',
+                    help="Adam, Adadelta, SGD")
+    p.add_argument('-decay_rate', type=float, default=0.5,
+                    help=" Multiplicative factor of learning rate decay")
+    p.add_argument('-start_decay', type=int, default=2,
+                    help="The epoch of learning rate start decay.")
     p.add_argument('-teacher_forcing_ratio', type=float, default=1.0,
                    help='teacher forcing ratio')   
 
@@ -98,8 +104,16 @@ def main():
         print("Total", torch.cuda.device_count(), "GPUs!")
         seq2seq = nn.DataParallel(seq2seq)
     seq2seq.cuda()
-    
-    optimizer = optim.Adam(seq2seq.parameters(), lr=args.lr)
+   
+    if args.optimizer == "Adam": 
+        optimizer = optim.Adam(seq2seq.parameters(), lr=1.0)
+
+    if args.optimizer == "Adadelta":
+        optimizer = optim.Adadelta(seq2seq.parameters())
+
+    if args.optimizer == "SGD":   
+        optimizer = optim.SGD(seq2seq.parameters(), lr=args.lr)
+        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=2, gamma=0.5)
     print(seq2seq)
 
     ## model_translate(seq2seq, "save-1024/seq2seq_3.pt", "data/valid.ch.1664", "eval/mt06.out", Lang1, Lang2, beam_size=12, max_len=120)
@@ -107,6 +121,9 @@ def main():
 
     best_val_loss = None
     for e in range(1, args.epochs+1):
+        # if args.optimizer == "SGD":
+        #    scheduler.step()
+
         start = time.time()
         train(e, seq2seq, optimizer, train_iter,
               en_size, args.grad_clip, Lang1, Lang2)

@@ -53,7 +53,7 @@ class Attention(nn.Module):
     def score(self, hidden, encoder_outputs):
         # [B*T*2H]->[B*T*H]
         energy = self.attn(torch.cat([hidden, encoder_outputs], 2))
-        energy = energy.transpose(1, 2)  # [B*H*T]
+        energy = F.tanh(energy.transpose(1, 2))  # [B*H*T] # add F.tanh  2018/1/11
         v = self.v.repeat(encoder_outputs.size(0), 1).unsqueeze(1)  # [B*1*H]
         energy = torch.bmm(v, energy)  # [B*1*T]
         return energy.squeeze(1)  # [B*T]
