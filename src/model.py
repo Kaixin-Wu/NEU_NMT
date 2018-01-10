@@ -93,34 +93,73 @@ class Decoder(nn.Module):
         output, hidden = self.gru(rnn_input, last_hidden)
         output = output.squeeze(0)  # (1,B,N) -> (B,N)
         context = context.squeeze(0)
+        '''
         output = self.out(torch.cat([output, context], 1))
         output = F.log_softmax(output, dim=1)
         return output, hidden, attn_weights
-
+        '''
+        output = torch.cat([output, context], 1)  ## [batch, 3hidden_size]  Edit by Wu kaixin  2018/1/10
+        return output, hidden, attn_weights
 
 class Seq2Seq(nn.Module):
     def __init__(self, encoder, decoder):
         super(Seq2Seq, self).__init__()
         self.encoder = encoder
         self.decoder = decoder
+    
+    def forward(self, src, trg):
+        '''
+        :param src:  [src_max_len, batch]
+        :param trg:  [trg_max_len, batch]
+        :return:
+        '''
+        encoder_output, hidden = self.encoder(src)
+        '''
+            ## src: [src_max_len, batch]
+            ## encoder_output: [src_max_len, batch, hidden_size]
+            ## hidden: (num_layers * num_directions, batch, hidden_size) -> [2, batch, hidden_size]
+        '''
+        hidden = hidden[:self.decoder.n_layers]
 
+        batch_size = src.size(1)
+        max_len = trg.size(0)
+        hidden_size = self.decoder.hidden_size
+        ## vocab_size = self.decoder.output_size
+        outputs = Variable(torch.zeros(max_len-1, batch_size, 3 * hidden_size)).cuda()
+
+        output = Variable(trg.data[0, :]) # sos [batch]
+        for t in range(1, max_len):
+            # output: [batch] -> [batch, 3hidden_size]
+            output, hidden, attn_weights = self.decoder(output, hidden, encoder_output)
+
+            outputs[t-1] = output
+            output =Variable(trg.data[t]).cuda()
+
+        transform_output = self.decoder.out(outputs) # [max_len-1, batch, output_size]
+        softmax_output = F.log_softmax(transform_output, dim=2)  # [max_len-1, batch, output_size]
+
+        return softmax_output
+    
+    '''
     def forward(self, src, trg, teacher_forcing_ratio=1.0):
         batch_size = src.size(1)
         max_len = trg.size(0)
         vocab_size = self.decoder.output_size
-        outputs = Variable(torch.zeros(max_len, batch_size, vocab_size)).cuda()
+        outputs = Variable(torch.zeros(max_len-1, batch_size, vocab_size)).cuda()
 
         encoder_output, hidden = self.encoder(src)
         hidden = hidden[:self.decoder.n_layers]
         output = Variable(trg.data[0, :])  # sos
         for t in range(1, max_len):
+            self.decoder.flatten_parameters()  ## Edit by Wu Kaixin 2018/1/9
             output, hidden, attn_weights = self.decoder(
                     output, hidden, encoder_output)
-            outputs[t] = output
+            outputs[t-1] = output
             is_teacher = random.random() < teacher_forcing_ratio
             top1 = output.data.max(1)[1]
             output = Variable(trg.data[t] if is_teacher else top1).cuda()
-        return outputs
+        return outputs # [max_len-1, batch, vocab_size]
+    '''
 
     def translate(self, src, trg, beam_size, Lang2):
         ''' beam search decoding. '''

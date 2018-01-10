@@ -11,6 +11,7 @@ from model import Encoder, Decoder, Seq2Seq
 from utils import load_dataset
 
 from translate import model_translate
+import time
 
 def parse_arguments():
     
@@ -39,7 +40,7 @@ def evaluate(model, val_iter, vocab_size, Lang1, Lang2):
         src = Variable(src.data.cuda(), volatile=True)
         trg = Variable(trg.data.cuda(), volatile=True)
         output = model(src, trg)
-        loss = F.cross_entropy(output[1:].view(-1, vocab_size),
+        loss = F.cross_entropy(output.view(-1, vocab_size),
                                trg[1:].contiguous().view(-1),
                                ignore_index=pad)
         total_loss += loss.data[0]
@@ -56,7 +57,7 @@ def train(e, model, optimizer, train_iter, vocab_size, grad_clip, Lang1, Lang2):
         src, trg = src.cuda(), trg.cuda()
         optimizer.zero_grad()
         output = model(src, trg)
-        loss = F.cross_entropy(output[1:].view(-1, vocab_size),
+        loss = F.cross_entropy(output.view(-1, vocab_size),
                                trg[1:].contiguous().view(-1),
                                ignore_index=pad)
         loss.backward()
@@ -69,7 +70,6 @@ def train(e, model, optimizer, train_iter, vocab_size, grad_clip, Lang1, Lang2):
             print("[%d][loss:%5.2f][pp:%5.2f]" %
                   (b, total_loss, math.exp(total_loss)))
             total_loss = 0
-
 
 def main():
     args = parse_arguments()
@@ -99,7 +99,6 @@ def main():
         seq2seq = nn.DataParallel(seq2seq)
     seq2seq.cuda()
     
-
     optimizer = optim.Adam(seq2seq.parameters(), lr=args.lr)
     print(seq2seq)
 
@@ -108,12 +107,14 @@ def main():
 
     best_val_loss = None
     for e in range(1, args.epochs+1):
+        start = time.time()
         train(e, seq2seq, optimizer, train_iter,
               en_size, args.grad_clip, Lang1, Lang2)
         val_loss = evaluate(seq2seq, val_iter, en_size, Lang1, Lang2)
         print("[Epoch:%d] val_loss:%5.3f | val_pp:%5.2fS"
               % (e, val_loss, math.exp(val_loss)))
-
+        end = time.time()
+        print("[Total Time] %.2fs" % (end - start))
         # Save the model if the validation loss is the best we've seen so far.
         if not best_val_loss or val_loss < best_val_loss:
             print("[!] saving model...")
