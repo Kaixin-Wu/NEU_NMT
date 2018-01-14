@@ -58,7 +58,7 @@ def model_translate(model,
     infile.close()
     outfile.close()  
     
-    status, output = subprocess.getstatusoutput(external_valid_script + " " + outfile)
+    status, output = subprocess.getstatusoutput(external_valid_script + " " + output_file)
     lines = output.strip().split("\n")
     
     BLEU_score = 0
