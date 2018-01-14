@@ -3,7 +3,7 @@
 ##  Email           :   wukaixin_neu@163.com
 ##  Last Modified in:   NEU NLP Lab., shenyang
 
-import commands
+import subprocess
 import torch
 from torch.autograd import Variable
 
@@ -58,7 +58,7 @@ def model_translate(model,
     infile.close()
     outfile.close()  
     
-    status, output = commands.getstatusoutput(external_valid_script + " " + outfile)
+    status, output = subprocess.getstatusoutput(external_valid_script + " " + outfile)
     lines = output.strip().split("\n")
     
     BLEU_score = 0

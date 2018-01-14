@@ -118,7 +118,8 @@ def main():
     print(seq2seq)
 
     ## model_translate(seq2seq, "save/seq2seq_4.pt", "data/valid.ch.1664", "eval/mt06.adam.out", Lang1, Lang2, beam_size=12, max_len=120)
-    ## exit(-1)    
+    model_translate(seq2seq, "save/seq2seq_4.pt", "data/valid.ch.1664", "eval/mt06.out", Lang1, Lang2, args.external_valid_script, beam_size=1, max_len=120)
+    exit(-1)    
 
     best_val_loss = None
     for e in range(1, args.epochs+1):
@@ -142,7 +143,7 @@ def main():
             best_val_loss = val_loss
 
             model_path = "save/seq2seq_"+str(e)+".pt"
-            model_translate(seq2seq, model_path, "data/valid.ch.1664", "eval/mt06.out", Lang1, Lang2, external_valid_script, beam_size=12, max_len=120)
+            model_translate(seq2seq, model_path, "data/valid.ch.1664", "eval/mt06.out", Lang1, Lang2, args.external_valid_script, beam_size=12, max_len=120)
 
     test_loss = evaluate(seq2seq, test_iter, en_size, Lang1, Lang2)
     print("[TEST] loss:%5.2f" % test_loss)
