@@ -3,6 +3,7 @@
 ##  Email           :   wukaixin_neu@163.com
 ##  Last Modified in:   NEU NLP Lab., shenyang
 
+import commands
 import torch
 from torch.autograd import Variable
 
@@ -12,6 +13,7 @@ def model_translate(model,
              output_file, 
              Lang1,
              Lang2,
+             external_valid_script,
              beam_size=12,
              max_len=120):
 
@@ -54,4 +56,18 @@ def model_translate(model,
         ## outfile.write(' '.join(reversed(out))+'\n')
     
     infile.close()
-    outfile.close()
+    outfile.close()  
+    
+    status, output = commands.getstatusoutput(external_valid_script + " " + outfile)
+    lines = output.strip().split("\n")
+    
+    BLEU_score = 0
+    for line in lines:
+        if line.find("BLEU score") != -1:
+            tokenList = line.strip().split()
+            for i in range(len(tokenList)):
+                if (tokenList[i] == "BLEU") and (tokenList[i+1] == "score"):
+                    BLEU_score = float(tokenList[i+3])
+                    break
+
+    print("[BLEU: %f]" % BLEU_score)

@@ -20,11 +20,11 @@ def parse_arguments():
                    help='number of epochs for train')
     p.add_argument('-batch_size', type=int, default=80,
                    help='number of epochs for train')
-    p.add_argument('-lr', type=float, default=0.0001,
+    p.add_argument('-lr', type=float, default=0.001,
                    help='initial learning rate')
     p.add_argument('-grad_clip', type=float, default=5.0,
                    help='initial learning rate')
-    p.add_argument('-optimizer', type=str, default='Adadelta',
+    p.add_argument('-optimizer', type=str, default='Adam',
                     help="Adam, Adadelta, SGD")
     p.add_argument('-decay_rate', type=float, default=0.5,
                     help=" Multiplicative factor of learning rate decay")
@@ -32,6 +32,7 @@ def parse_arguments():
                     help="The epoch of learning rate start decay.")
     p.add_argument('-teacher_forcing_ratio', type=float, default=1.0,
                    help='teacher forcing ratio')   
+    p.add_argument('-external_valid_script', type=str, default='./validate_by_bleu.sh')
 
     return p.parse_args()
 
@@ -106,7 +107,7 @@ def main():
     seq2seq.cuda()
    
     if args.optimizer == "Adam": 
-        optimizer = optim.Adam(seq2seq.parameters(), lr=1.0)
+        optimizer = optim.Adam(seq2seq.parameters(), lr=args.lr)
 
     if args.optimizer == "Adadelta":
         optimizer = optim.Adadelta(seq2seq.parameters())
@@ -116,7 +117,7 @@ def main():
         scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=2, gamma=0.5)
     print(seq2seq)
 
-    ## model_translate(seq2seq, "save-1024/seq2seq_3.pt", "data/valid.ch.1664", "eval/mt06.out", Lang1, Lang2, beam_size=12, max_len=120)
+    ## model_translate(seq2seq, "save/seq2seq_4.pt", "data/valid.ch.1664", "eval/mt06.adam.out", Lang1, Lang2, beam_size=12, max_len=120)
     ## exit(-1)    
 
     best_val_loss = None
@@ -139,6 +140,10 @@ def main():
                 os.makedirs("save")
             torch.save(seq2seq.state_dict(), './save/seq2seq_%d.pt' % (e))
             best_val_loss = val_loss
+
+            model_path = "save/seq2seq_"+str(e)+".pt"
+            model_translate(seq2seq, model_path, "data/valid.ch.1664", "eval/mt06.out", Lang1, Lang2, external_valid_script, beam_size=12, max_len=120)
+
     test_loss = evaluate(seq2seq, test_iter, en_size, Lang1, Lang2)
     print("[TEST] loss:%5.2f" % test_loss)
 

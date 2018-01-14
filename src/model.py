@@ -6,6 +6,7 @@ from torch.autograd import Variable
 import torch.nn.functional as F
 
 from beam_search import Beam
+from utils import get_threshold
 
 class Encoder(nn.Module):
     def __init__(self, input_size, embed_size, hidden_size,
@@ -15,8 +16,8 @@ class Encoder(nn.Module):
         self.hidden_size = hidden_size
         self.embed_size = embed_size
         self.embed = nn.Embedding(input_size, embed_size)
-        ## stdv = 1. / math.sqrt(embed_size)
-        ## self.embed.weight.data.normal_(0, stdv)
+        stdv = get_threshold(input_size, embed_size)
+        self.embed.weight.data.uniform_(-stdv, stdv)
 
         self.gru = nn.GRU(embed_size, hidden_size, n_layers,
                           dropout=dropout, bidirectional=True)
@@ -38,9 +39,14 @@ class Attention(nn.Module):
     def __init__(self, hidden_size):
         super(Attention, self).__init__()
         self.hidden_size = hidden_size
-        self.attn = nn.Linear(self.hidden_size * 3, hidden_size)
+        self.attn = nn.Linear(hidden_size * 3, hidden_size)
+        stdv = get_threshold(hidden_size * 3, hidden_size)
+        self.attn.weight.data.uniform_(-stdv, stdv)
+        self.attn.bias.data.zero_()
+
         self.v = nn.Parameter(torch.rand(hidden_size))
-        stdv = 1. / math.sqrt(self.v.size(0))
+        # stdv = 1. / math.sqrt(self.v.size(0))
+        stdv = get_threshold(self.v.size(0))
         self.v.data.uniform_(-stdv, stdv)
 
     def forward(self, hidden, encoder_outputs):
@@ -69,14 +75,17 @@ class Decoder(nn.Module):
         self.n_layers = n_layers
 
         self.embed = nn.Embedding(output_size, embed_size)
-        ## stdv = 1. / math.sqrt(embed_size)
-        ## self.embed.weight.data.normal_(0, stdv)
+        stdv = get_threshold(output_size, embed_size)
+        self.embed.weight.data.uniform_(-stdv, stdv)
 
         ### self.dropout = nn.Dropout(dropout, inplace=True)
         self.attention = Attention(hidden_size)
         self.gru = nn.GRU(2 * hidden_size + embed_size, hidden_size,
                           n_layers, dropout=dropout)
         self.out = nn.Linear(hidden_size * 3, output_size)
+        stdv = get_threshold(hidden_size * 3, output_size)
+        self.out.weight.data.uniform_(-stdv, stdv)
+        self.out.bias.data.zero_()
 
     def forward(self, input, last_hidden, encoder_outputs):
         # Get the embedding of the current input word (last output word)
@@ -99,6 +108,7 @@ class Decoder(nn.Module):
         return output, hidden, attn_weights
         '''
         output = torch.cat([output, context], 1)  ## [batch, 3hidden_size]  Edit by Wu kaixin  2018/1/10
+        output = F.tanh(output)  ## Wu Kaixin 2018/1/11
         return output, hidden, attn_weights
 
 class Seq2Seq(nn.Module):
@@ -185,6 +195,8 @@ class Seq2Seq(nn.Module):
             # output:  [batch] -> [batch, output_size]
             output, hidden, attn_weights = self.decoder(
                     output, hidden, encoder_output)
+            output = self.decoder.out(output)
+            output = F.log_softmax(output, dim=1)
 
             workd_lk = output
             if output.size(0) == 1:

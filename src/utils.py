@@ -1,5 +1,12 @@
+import math
 from torchtext.data import Field, BucketIterator
 from torchtext.datasets import TranslationDataset
+
+def get_threshold(n_in, n_out=None):
+    
+    if n_out:
+        return math.sqrt(6. / (n_in + n_out))
+    return math.sqrt(6. / n_in)
 
 def load_dataset(batch_size):
     '''
