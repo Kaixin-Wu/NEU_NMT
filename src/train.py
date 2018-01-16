@@ -46,7 +46,7 @@ def evaluate(model, val_iter, vocab_size, Lang1, Lang2):
         trg, len_trg = batch.trg
         src = Variable(src.data.cuda(), volatile=True)
         trg = Variable(trg.data.cuda(), volatile=True)
-        output = model(src, trg)
+        output = model(src, trg, len_src)
         loss = F.cross_entropy(output.view(-1, vocab_size),
                                trg[1:].contiguous().view(-1),
                                ignore_index=pad)
@@ -63,7 +63,7 @@ def train(e, model, optimizer, train_iter, vocab_size, grad_clip, Lang1, Lang2):
         trg, len_trg = batch.trg
         src, trg = src.cuda(), trg.cuda()
         optimizer.zero_grad()
-        output = model(src, trg)
+        output = model(src, trg, len_src)
         loss = F.cross_entropy(output.view(-1, vocab_size),
                                trg[1:].contiguous().view(-1),
                                ignore_index=pad)
@@ -118,8 +118,8 @@ def main():
     print(seq2seq)
 
     ## model_translate(seq2seq, "save/seq2seq_4.pt", "data/valid.ch.1664", "eval/mt06.adam.out", Lang1, Lang2, beam_size=12, max_len=120)
-    model_translate(seq2seq, "save/seq2seq_4.pt", "data/valid.ch.1664", "eval/mt06.out", Lang1, Lang2, args.external_valid_script, beam_size=1, max_len=120)
-    exit(-1)    
+    # model_translate(seq2seq, "save/seq2seq_1.pt", "data/valid.ch.1664", "eval/mt06.out", Lang1, Lang2, args.external_valid_script, beam_size=1, max_len=120)
+    # exit(-1)    
 
     best_val_loss = None
     for e in range(1, args.epochs+1):
@@ -135,15 +135,16 @@ def main():
         end = time.time()
         print("[Total Time] %.2fs" % (end - start))
         # Save the model if the validation loss is the best we've seen so far.
-        if not best_val_loss or val_loss < best_val_loss:
-            print("[!] saving model...")
-            if not os.path.isdir("save"):
-                os.makedirs("save")
-            torch.save(seq2seq.state_dict(), './save/seq2seq_%d.pt' % (e))
-            best_val_loss = val_loss
+        
+        ## if not best_val_loss or val_loss < best_val_loss:
+        print("[!] saving model...")
+        if not os.path.isdir("save"):
+            os.makedirs("save")
+        torch.save(seq2seq.state_dict(), './save/seq2seq_%d.pt' % (e))
+        # best_val_loss = val_loss
 
-            model_path = "save/seq2seq_"+str(e)+".pt"
-            model_translate(seq2seq, model_path, "data/valid.ch.1664", "eval/mt06.out", Lang1, Lang2, args.external_valid_script, beam_size=12, max_len=120)
+        model_path = "save/seq2seq_"+str(e)+".pt"
+        model_translate(seq2seq, model_path, "data/valid.ch.1664", "eval/mt06.out", Lang1, Lang2, args.external_valid_script, beam_size=1, max_len=120)
 
     test_loss = evaluate(seq2seq, test_iter, en_size, Lang1, Lang2)
     print("[TEST] loss:%5.2f" % test_loss)

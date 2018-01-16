@@ -19,20 +19,63 @@ class Encoder(nn.Module):
         stdv = get_threshold(input_size, embed_size)
         self.embed.weight.data.uniform_(-stdv, stdv)
 
-        self.gru = nn.GRU(embed_size, hidden_size, n_layers,
-                          dropout=dropout, bidirectional=True)
-
-    def forward(self, src, hidden=None):
+        # self.gru = nn.GRU(embed_size, hidden_size, n_layers,
+        #                  dropout=dropout, bidirectional=True)
+        self.gru_forward = nn.GRU(embed_size, hidden_size, n_layers,
+                                  dropout=dropout)
+        self.gru_backward = nn.GRU(embed_size, hidden_size, n_layers,
+                                   dropout=dropout)        
+    
+    def forward(self, src, len_src, hidden=None):
+        '''
+        :param src: [timestep ,batch]
+        :param len_src:  [batch]
+        :param hidden:
+        :return:
+        '''
         embedded = self.embed(src)
-        self.gru.flatten_parameters()   ## Edit by Wu Kaixin 2018/1/9
-        outputs, hidden = self.gru(embedded, hidden)
+        outputs_forward, hidden_forward = self.gru_forward(embedded, hidden)
 
-        '''
-        # sum bidirectional outputs
-        outputs = (outputs[:, :, :self.hidden_size] +
-                   outputs[:, :, self.hidden_size:])
-        '''
+        max_len, batch = src.size()
+        src_reversed = Variable(torch.LongTensor(batch, max_len)).cuda()  # [batch, timestep]
+        
+        src_trans = src.transpose(0, 1)  # [batch, timestep]
+        for i in range(len_src.size(0)):
+            end = int(len_src[i])
+
+            idx = [j for j in range(max_len)]
+            idx = idx[:end][::-1] + idx[end:]
+
+            idx = torch.LongTensor(idx).cuda()
+            src_reversed[i] = src_trans[i][idx]
+       
+        src_reversed = src_reversed.transpose(0, 1) # [timestep, batch]
+        embedded_reversed = self.embed(src_reversed)
+        outputs_backward, hidden_backward = self.gru_backward(embedded_reversed, hidden)
+
+        outputs = torch.cat([outputs_forward, outputs_backward], 2)
+
+        hidden = Variable(torch.zeros(batch, self.hidden_size)).cuda()
+        tmp = outputs_backward.transpose(0, 1) # [batch, max_len, hidden_size]
+        for i in range(tmp.size(0)):
+            tmp_matrix = tmp[i]
+            index = len_src[i]-1
+            hidden[i] = tmp_matrix[index]
+
+        hidden = hidden.unsqueeze(0) # [1, batch, hidden_size]
+
         return outputs, hidden
+    # def forward(self, src, hidden=None):
+    #     embedded = self.embed(src)
+    #     self.gru.flatten_parameters()   ## Edit by Wu Kaixin 2018/1/9
+    #     outputs, hidden = self.gru(embedded, hidden)
+
+    #     '''
+    #     # sum bidirectional outputs
+    #     outputs = (outputs[:, :, :self.hidden_size] +
+    #                outputs[:, :, self.hidden_size:])
+    #     '''
+    #     return outputs, hidden
 
 
 class Attention(nn.Module):
@@ -49,11 +92,19 @@ class Attention(nn.Module):
         stdv = get_threshold(self.v.size(0))
         self.v.data.uniform_(-stdv, stdv)
 
-    def forward(self, hidden, encoder_outputs):
+    def forward(self, hidden, encoder_outputs, len_src):
         timestep = encoder_outputs.size(0)
         h = hidden.repeat(timestep, 1, 1).transpose(0, 1)
         encoder_outputs = encoder_outputs.transpose(0, 1)  # [B*T*2H]
         attn_energies = self.score(h, encoder_outputs)
+
+        mask = Variable(torch.zeros(attn_energies.size(0), attn_energies.size(1))).cuda()
+        for i in range(len_src.size(0)):
+            index = len_src[i]
+            if int(index) < mask.size(1):
+                mask[i, int(index):] = float("-inf")
+        attn_energies += mask        
+
         return F.softmax(attn_energies, dim=1).unsqueeze(1)
 
     def score(self, hidden, encoder_outputs):
@@ -87,12 +138,12 @@ class Decoder(nn.Module):
         self.out.weight.data.uniform_(-stdv, stdv)
         self.out.bias.data.zero_()
 
-    def forward(self, input, last_hidden, encoder_outputs):
+    def forward(self, input, last_hidden, encoder_outputs, len_src):
         # Get the embedding of the current input word (last output word)
         embedded = self.embed(input).unsqueeze(0)  # (1,B,N)
         ### embedded = self.dropout(embedded)
         # Calculate attention weights and apply to encoder outputs
-        attn_weights = self.attention(last_hidden[-1], encoder_outputs)
+        attn_weights = self.attention(last_hidden[-1], encoder_outputs, len_src)
         context = attn_weights.bmm(encoder_outputs.transpose(0, 1))  # (B,1,N)
         context = context.transpose(0, 1)  # (1,B,N)
         # Combine embedded input word and attended context, run through RNN
@@ -117,13 +168,14 @@ class Seq2Seq(nn.Module):
         self.encoder = encoder
         self.decoder = decoder
     
-    def forward(self, src, trg):
+    def forward(self, src, trg, len_src):
         '''
         :param src:  [src_max_len, batch]
         :param trg:  [trg_max_len, batch]
+        :param len_src: [batch]
         :return:
         '''
-        encoder_output, hidden = self.encoder(src)
+        encoder_output, hidden = self.encoder(src, len_src)
         '''
             ## src: [src_max_len, batch]
             ## encoder_output: [src_max_len, batch, hidden_size]
@@ -140,7 +192,7 @@ class Seq2Seq(nn.Module):
         output = Variable(trg.data[0, :]) # sos [batch]
         for t in range(1, max_len):
             # output: [batch] -> [batch, 3hidden_size]
-            output, hidden, attn_weights = self.decoder(output, hidden, encoder_output)
+            output, hidden, attn_weights = self.decoder(output, hidden, encoder_output, len_src)
 
             outputs[t-1] = output
             output =Variable(trg.data[t]).cuda()
@@ -171,7 +223,7 @@ class Seq2Seq(nn.Module):
         return outputs # [max_len-1, batch, vocab_size]
     '''
 
-    def translate(self, src, trg, beam_size, Lang2):
+    def translate(self, src, len_src, trg, beam_size, Lang2):
         ''' beam search decoding. '''
         '''
         :param src:   [src_max_len, batch]    ## batch = 1
@@ -180,7 +232,7 @@ class Seq2Seq(nn.Module):
         :return: best translate candidate
         '''
         max_len = trg.size(0)
-        encoder_output, hidden = self.encoder(src)
+        encoder_output, hidden = self.encoder(src, len_src)
         '''
             ## src: [src_max_len, batch]
             ## encoder_output: [src_max_len, batch, hidden_size]
@@ -194,7 +246,7 @@ class Seq2Seq(nn.Module):
         for t in range(1, max_len):
             # output:  [batch] -> [batch, output_size]
             output, hidden, attn_weights = self.decoder(
-                    output, hidden, encoder_output)
+                    output, hidden, encoder_output, len_src)
             output = self.decoder.out(output)
             output = F.log_softmax(output, dim=1)
 
@@ -224,7 +276,7 @@ class Seq2Seq(nn.Module):
             # output = Variable(nextInputs).cuda()
 
             originState = beam.get_current_origin()
-            print("[origin_state]:", originState)
+            ## print("[origin_state]:", originState)
             hidden = hidden[:, originState]
 
         xx, yy = beam.get_best()

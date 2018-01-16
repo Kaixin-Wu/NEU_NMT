@@ -31,17 +31,20 @@ def model_translate(model,
     for line in infile:
         wordList = line.strip().split()
         word_ids = [Lang1.vocab.stoi[word] for word in wordList]
+        len_src = [len(word_ids)]
         ids = [[src_SOS_id] + word_ids + [src_EOS_id]]
 
         src = torch.LongTensor(ids)
         src = src.transpose(0, 1)
         src = Variable(src.cuda(), volatile=True)
+        len_src = torch.LongTensor(len_src)
+        len_src = Variable(len_src.cuda(), volatile=True)
 
         trg = torch.LongTensor([[trg_SOS_id]*max_len])
         trg = trg.transpose(0, 1)
         trg = Variable(trg.cuda(), volatile=True)
 
-        xx, yy, zz = model.translate(src, trg, beam_size, Lang2)
+        xx, yy, zz = model.translate(src, len_src, trg, beam_size, Lang2)
        
         out = []
         for index in reversed(zz):
